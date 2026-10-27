@@ -10,7 +10,7 @@ from app.models import Branch, Product, User
 from app.modules.inventory.models.stock import MovementType, StockBalance, StockMovement
 from app.modules.inventory.models.stock_adjustment import AdjustmentStatus, StockAdjustment, StockAdjustmentItem
 from app.modules.inventory.schemas.stock_adjustment import StockAdjustmentCreate, StockReceiptCreate, StockReceiptResponse, StockReceiptItemCreate
-from app.modules.inventory.services.stock_lock import lock_company_products
+from app.modules.inventory.services.stock_lock import lock_company_products, lock_receipt_operation
 
 
 def list_adjustments(session: Session, user: User) -> list[StockAdjustment]:
@@ -66,6 +66,7 @@ def receive_stock(session: Session, user: User, data: StockReceiptCreate) -> Sto
     if len(products) != len(product_ids):
         raise HTTPException(404, "Uno o más productos no pertenecen a esta instalación")
 
+    lock_receipt_operation(session, user.company_id, data.operation_id)
     lock_company_products(session, user.company_id, product_ids)
     existing = list(session.scalars(select(StockMovement).where(
         StockMovement.company_id == user.company_id,
@@ -75,7 +76,9 @@ def receive_stock(session: Session, user: User, data: StockReceiptCreate) -> Sto
     if existing:
         existing_by_product = {movement.product_id: movement.quantity for movement in existing}
         requested = {item.product_id: item.quantity for item in data.items}
-        if existing_by_product != requested:
+        if (existing_by_product != requested
+                or any(movement.branch_id != data.branch_id or movement.reason != data.notes
+                       for movement in existing)):
             raise HTTPException(409, "La operación de entrada ya existe con otros datos")
         return StockReceiptResponse(
             operation_id=data.operation_id,
@@ -93,7 +96,11 @@ def receive_stock(session: Session, user: User, data: StockReceiptCreate) -> Sto
             balance = StockBalance(id=uuid4(), company_id=user.company_id, branch_id=data.branch_id, product_id=item.product_id, quantity=Decimal("0"))
             session.add(balance)
             session.flush()
-        balance.quantity += item.quantity
+        new_quantity = balance.quantity + item.quantity
+        if new_quantity > Decimal("9999999999.9999"):
+            session.rollback()
+            raise HTTPException(409, "La entrada supera la capacidad máxima de existencias")
+        balance.quantity = new_quantity
         session.add(StockMovement(
             id=uuid4(), company_id=user.company_id, branch_id=data.branch_id, product_id=item.product_id,
             movement_type=MovementType.IN, quantity=item.quantity, reference_type="stock_receipt",

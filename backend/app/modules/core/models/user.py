@@ -10,7 +10,7 @@ from app.modules.core.models.base import Base
 
 class User(Base):
     __tablename__ = "users"
-    __table_args__ = (UniqueConstraint("company_id", "email"),)
+    __table_args__ = (UniqueConstraint("company_id", "email", name="uq_users_company_email"),)
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
     company_id: Mapped[UUID] = mapped_column(ForeignKey("companies.id"), nullable=False)

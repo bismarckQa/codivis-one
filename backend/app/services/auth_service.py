@@ -3,14 +3,14 @@ import secrets
 from uuid import uuid4
 
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.core.security import check_clock_state, decrypt, digest, passwords
 from app.models import Branch, Company, License, LicenseToken, User
 from app.schemas.auth import BootstrapRequest, LoginRequest
-from app.services.license_service import verify_company_binding, verify_stored_license
+from app.services.license_service import verify_company_binding, verify_stored_license, verify_session_license
 
 
 def bootstrap_admin(session: Session, data: BootstrapRequest, activation_token: str, settings: Settings) -> None:
@@ -75,11 +75,14 @@ def get_me(session: Session, token_value: str, settings: Settings) -> dict:
     if token is None or token.user is None or token.license is None:
         raise HTTPException(401, "Sesión inválida o licencia caducada")
     user = token.user
+    if not user.is_active:
+        raise HTTPException(401, "Usuario desactivado")
     license_row = token.license
     company = session.get(Company, user.company_id)
+    if company is None:
+        raise HTTPException(401, "Empresa no disponible")
     try:
-        signed_payload = verify_stored_license(license_row, settings)
-        verify_company_binding(signed_payload, company, settings)
+        verify_session_license(license_row, company, settings)
     except Exception as exc:
         raise HTTPException(401, "Licencia inválida") from exc
     return {
@@ -94,3 +97,13 @@ def get_me(session: Session, token_value: str, settings: Settings) -> dict:
         "user_count": session.scalar(select(func.count(User.id)).where(User.company_id == user.company_id)),
         "branch_count": session.scalar(select(func.count(Branch.id)).where(Branch.company_id == user.company_id)),
     }
+
+
+def logout(session: Session, token_value: str, settings: Settings) -> None:
+    """Revoke only this session; repeated logout requests are harmless."""
+    session.execute(update(LicenseToken).where(
+        LicenseToken.token_hash == digest(token_value, settings.token_pepper),
+        LicenseToken.token_type == "session",
+        LicenseToken.revoked_at.is_(None),
+    ).values(revoked_at=datetime.now(timezone.utc)))
+    session.commit()

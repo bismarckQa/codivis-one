@@ -63,7 +63,7 @@ class StockReceiptCreate(BaseModel):
 
     operation_id: UUID = Field(default_factory=uuid4)
     branch_id: UUID
-    notes: str | None = Field(default=None, max_length=5000)
+    notes: str | None = Field(default=None, max_length=120)
     items: list[StockReceiptItemCreate] = Field(min_length=1)
 
     @model_validator(mode="after")

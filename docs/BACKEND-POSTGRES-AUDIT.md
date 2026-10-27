@@ -15,6 +15,7 @@ La prueba de integración usa PostgreSQL real en la base aislada `codivis_one_te
 - Entradas: endpoint `POST /api/inventory/adjustments/receipts`, incremento atómico de saldo, movimiento `in`, aislamiento por empresa e idempotencia mediante `operation_id`.
 - Ventas: confirmación/cancelación con transición única, bloqueo de la venta y de los productos, descuento de stock y movimiento de salida en la misma transacción.
 - Sucursales: creación serializada mediante bloqueo pesimista de la fila de empresa antes de contar el límite.
+- Usuarios: API administrativa de listado, creación y actualización parcial; límite de licencia serializado por empresa, protección del último administrador activo y revocación de sesiones al desactivar o cambiar contraseña.
 - PostgreSQL: checks para importes, descuentos, totales, cantidades y unicidades de líneas.
 - Aislamiento: las operaciones comprueban `company_id`; una venta no puede usar productos de otra empresa.
 
@@ -38,7 +39,8 @@ Migraciones comprobadas:
 
 - Base vacía: `0001` → `0007`.
 - Base existente: `0001` → `0006` y después `0007`.
-- Versión final observada: `0008_stock_operation_idempotency`.
+- Versión final observada: `0009_user_management`.
+- La migración de usuarios es `0009_user_management`; se verificó la actualización `0008` → `0009`.
 - Restricciones comprobadas en PostgreSQL: checks, unicidades de saldos/líneas y unicidad de operación de movimientos.
 
 ## Módulos todavía no funcionales

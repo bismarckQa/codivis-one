@@ -72,6 +72,20 @@ def verify_company_binding(license_payload: LicensePayload, company: Company, se
         raise ValueError("license is not bound to the stored company")
 
 
+def verify_session_license(license_row: License, company: Company, settings: Settings) -> LicensePayload:
+    """Validate commercial validity without reapplying the import deadline."""
+    if license_row.company_id != company.id:
+        raise ValueError("session license belongs to another company")
+    payload = verify_stored_license(license_row, settings)
+    verify_company_binding(payload, company, settings)
+    if settings.clock_state_path is not None:
+        check_clock_state(settings.clock_state_path)
+    now = datetime.now(timezone.utc)
+    if not payload.valid_from <= now < payload.valid_until:
+        raise ValueError("license is outside its validity period")
+    return payload
+
+
 def import_license(session: Session, payload: LicensePayload, raw_payload: dict[str, Any], signature: str, settings: Settings) -> str:
     if not activation_key_matches(payload.device_public_key, settings.activation_private_key_path):
         raise HTTPException(409, "La licencia no pertenece a este equipo")

@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db, settings
 from app.models import Company, LicenseToken, User
-from app.services.license_service import verify_company_binding, verify_stored_license
+from app.services.license_service import verify_session_license
 from app.core.security import digest
 
 
@@ -22,12 +22,13 @@ def get_current_user(
     ))
     if token is None or token.user is None or token.license is None:
         raise HTTPException(401, "Sesión inválida o licencia caducada")
+    if not token.user.is_active:
+        raise HTTPException(401, "Usuario desactivado")
     company = session.get(Company, token.user.company_id)
     if company is None:
         raise HTTPException(401, "Empresa no disponible")
     try:
-        payload = verify_stored_license(token.license, settings)
-        verify_company_binding(payload, company, settings)
+        verify_session_license(token.license, company, settings)
     except Exception as exc:
         raise HTTPException(401, "Licencia inválida") from exc
     return token.user
