@@ -1,0 +1,1 @@
+"""Purchases SQLAlchemy models."""

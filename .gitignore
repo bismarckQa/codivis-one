@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+frontend/node_modules/
+frontend/dist/
+.venv/
+__pycache__/
+*.pyc
+license-issuer/private/
+license-issuer/public/
+license-issuer/data/

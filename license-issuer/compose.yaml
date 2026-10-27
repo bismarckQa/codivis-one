@@ -1,0 +1,15 @@
+name: codivis-license-issuer
+
+services:
+  license-issuer:
+    container_name: codivis-license-issuer
+    build: .
+    ports:
+      - "127.0.0.1:8001:8001"
+    volumes:
+      - ./data:/data
+    environment:
+      ISSUER_ADMIN_TOKEN: ${ISSUER_ADMIN_TOKEN:?ISSUER_ADMIN_TOKEN is required}
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001"]
+    restart: unless-stopped
+
